@@ -13,7 +13,7 @@ interface ResultsDisplayProps {
 
 const ReportHeader = () => (
     <div id="report-header" className="bg-black text-white p-6">
-        <div className="font-bold text-2xl leading-none tracking-widest">
+        <div className="font-bold text-xl leading-none tracking-widest text-center">
             <div>ALCOTT</div>
             <div>GLOBAL</div>
         </div>
