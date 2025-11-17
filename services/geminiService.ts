@@ -1,13 +1,5 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { ExtractedData } from "../types";
-
-const API_KEY = process.env.API_KEY;
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const fileToGenerativePart = async (file: File) => {
   const base64EncodedData = await new Promise<string>((resolve, reject) => {
@@ -145,6 +137,12 @@ const schema = {
 
 
 export const extractResumeData = async (file: File): Promise<ExtractedData> => {
+  const API_KEY = process.env.API_KEY;
+  if (!API_KEY) {
+    throw new Error("API_KEY environment variable not set");
+  }
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
   const filePart = await fileToGenerativePart(file);
   
   const prompt = `You are an expert HR assistant specializing in parsing resumes. Analyze the provided resume document and extract the information precisely according to the JSON schema I've provided.
