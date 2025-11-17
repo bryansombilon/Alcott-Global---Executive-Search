@@ -1,0 +1,5 @@
+{
+  "name": "AI Resume Extractor",
+  "description": "An intelligent system that accepts PDF or Word documents, extracts key candidate details, and answers specific questions based on the resume's content using AI.",
+  "requestFramePermissions": []
+}
