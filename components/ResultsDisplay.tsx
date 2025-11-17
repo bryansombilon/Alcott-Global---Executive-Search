@@ -12,7 +12,7 @@ interface ResultsDisplayProps {
 }
 
 const ReportHeader = () => (
-    <div id="report-header" className="bg-black text-white p-6">
+    <div id="report-header" className="bg-black text-white p-4">
         <div className="font-bold text-xl leading-none tracking-widest text-center">
             <div>ALCOTT</div>
             <div>GLOBAL</div>
@@ -21,8 +21,8 @@ const ReportHeader = () => (
 );
 
 const ReportFooter = () => (
-    <div id="report-footer" className="bg-black text-white p-6 mt-auto text-xs">
-        <p className="text-gray-400 text-[10px] border-b border-gray-600 pb-2 mb-2">
+    <div id="report-footer" className="bg-black text-white p-4 mt-auto text-xs">
+        <p className="text-gray-400 text-xs border-b border-gray-600 pb-2 mb-2">
             Interview of candidates referred by Alcott Global. shall be deemed acceptance of the standard terms of business and agreement to pay the relevant agency fee for such candidates employed by the organization to whom the referral was made or any other organization or person associated with it.
         </p>
         <div className="flex justify-between items-center">
@@ -173,54 +173,99 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
 
     const handleDownloadPdf = async () => {
         setIsGeneratingPdf(true);
-        const reportElement = document.getElementById('report-container');
-        if (reportElement) {
-            const canvas = await html2canvas(reportElement, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                width: reportElement.scrollWidth,
-                height: reportElement.scrollHeight,
-                windowWidth: reportElement.scrollWidth,
-                windowHeight: reportElement.scrollHeight,
-            });
+        const headerEl = document.getElementById('report-header');
+        const contentEl = document.getElementById('report-body');
+        const footerEl = document.getElementById('report-footer');
 
-            const imgData = canvas.toDataURL('image/png');
-            
-            const pdf = new jsPDF({
-                orientation: 'p',
-                unit: 'mm',
-                format: 'a4'
-            });
+        if (!headerEl || !contentEl || !footerEl) {
+            console.error("Report elements not found for downloading.");
+            setIsGeneratingPdf(false);
+            return;
+        }
 
+        const noPrintElements = Array.from(contentEl.querySelectorAll('.no-print')) as HTMLElement[];
+        const spacers: HTMLElement[] = [];
+
+        try {
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-            
-            const margin = 12.7; 
-            
-            const contentWidth = pdfWidth - margin * 2;
-            const contentHeightOnPage = pdfHeight - margin * 2;
 
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
+            const [headerCanvas, footerCanvas] = await Promise.all([
+                html2canvas(headerEl, { scale: 2, useCORS: true, width: headerEl.scrollWidth, height: headerEl.scrollHeight }),
+                html2canvas(footerEl, { scale: 2, useCORS: true, width: footerEl.scrollWidth, height: footerEl.scrollHeight }),
+            ]);
+
+            const headerHeight = (headerCanvas.height * pdfWidth) / headerCanvas.width;
+            const footerHeight = (footerCanvas.height * pdfWidth) / footerCanvas.width;
+            const contentHeightOnPage = pdfHeight - headerHeight - footerHeight;
+
+            noPrintElements.forEach(el => el.style.display = 'none');
             
-            const ratio = imgWidth / contentWidth;
-            const scaledImgHeight = imgHeight / ratio;
-            
-            const totalPages = Math.ceil(scaledImgHeight / contentHeightOnPage);
+            const pagePixelHeight = (contentHeightOnPage * contentEl.scrollWidth) / pdfWidth;
+
+            if (pagePixelHeight > 0) {
+                let continueChecking = true;
+                while(continueChecking) {
+                    continueChecking = false;
+                    const experienceItems = Array.from(contentEl.querySelectorAll('.experience-item')) as HTMLElement[];
+                    let currentPageBreakY = pagePixelHeight;
+
+                    for (const item of experienceItems) {
+                        const itemTop = item.offsetTop;
+                        const itemBottom = itemTop + item.offsetHeight;
+
+                        while (currentPageBreakY < itemTop) {
+                            currentPageBreakY += pagePixelHeight;
+                        }
+
+                        if (itemBottom > currentPageBreakY) {
+                            const spaceToFill = currentPageBreakY - itemTop;
+                            if (spaceToFill > 0) {
+                                const spacer = document.createElement('div');
+                                spacer.style.height = `${spaceToFill}px`;
+                                item.before(spacer);
+                                spacers.push(spacer);
+                                continueChecking = true; 
+                                break; 
+                            }
+                        }
+                    }
+                }
+            }
+
+            const contentCanvas = await html2canvas(contentEl, { scale: 2, useCORS: true, width: contentEl.scrollWidth, height: contentEl.scrollHeight });
+
+            const totalScaledContentHeight = (contentCanvas.height * pdfWidth) / contentCanvas.width;
+            const totalPages = Math.ceil(totalScaledContentHeight / contentHeightOnPage);
 
             for (let i = 0; i < totalPages; i++) {
-                if (i > 0) {
-                    pdf.addPage();
-                }
+                if (i > 0) pdf.addPage();
+
+                pdf.addImage(headerCanvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, headerHeight);
+                pdf.addImage(footerCanvas.toDataURL('image/png'), 'PNG', 0, pdfHeight - footerHeight, pdfWidth, footerHeight);
+
+                pdf.saveGraphicsState();
+                pdf.rect(0, headerHeight, pdfWidth, contentHeightOnPage).clip();
+                
                 const yOffset = -i * contentHeightOnPage;
-                pdf.addImage(imgData, 'PNG', margin, yOffset + margin, contentWidth, scaledImgHeight);
+                pdf.addImage(contentCanvas.toDataURL('image/png'), 'PNG', 0, headerHeight + yOffset, pdfWidth, totalScaledContentHeight);
+                
+                pdf.restoreGraphicsState();
             }
-            
+
             pdf.save(`Report - ${editableData.candidateName || 'candidate'}.pdf`);
+
+        } catch (error) {
+            console.error("Error generating PDF for download:", error);
+            alert("Sorry, there was an error creating the PDF report.");
+        } finally {
+            spacers.forEach(el => el.remove());
+            noPrintElements.forEach(el => el.style.display = '');
+            setIsGeneratingPdf(false);
         }
-        setIsGeneratingPdf(false);
     };
+
 
     const handleFieldUpdate = (field: keyof Omit<ExtractedData, 'professionalExperience' | 'education' | 'certifications' | 'functionalEvaluation'>, value: string) => {
         const newData = { ...editableData, [field]: value };

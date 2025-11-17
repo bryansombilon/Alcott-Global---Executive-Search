@@ -49,7 +49,7 @@ export const EditableField: React.FC<EditableFieldProps> = ({
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        className={`flex-grow p-2 border border-primary-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:outline-none text-sm leading-relaxed ${inputClassName}`}
+                        className={`flex-grow p-2 border border-primary-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:outline-none text-sm leading-relaxed bg-primary-50 transition-colors ${inputClassName}`}
                         rows={5}
                         autoFocus
                     />
@@ -59,7 +59,7 @@ export const EditableField: React.FC<EditableFieldProps> = ({
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        className={`flex-grow p-2 border border-primary-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:outline-none w-full ${inputClassName}`}
+                        className={`flex-grow p-2 border border-primary-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:outline-none w-full bg-primary-50 transition-colors ${inputClassName}`}
                         autoFocus
                     />
                 )}
