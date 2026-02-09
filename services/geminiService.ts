@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { ExtractedData } from "../types";
 
@@ -67,7 +68,7 @@ const schema = {
     industry: { type: Type.STRING },
     function: { type: Type.STRING, description: "Job function, e.g., Supply Chain, Logistics" },
     language: { type: Type.STRING, description: "Languages spoken by the candidate" },
-    summary: { type: Type.STRING, description: "A brief professional summary from the resume" },
+    summary: { type: Type.STRING, description: "A tailored professional summary highlighting fit for the JD" },
     education: {
       type: Type.ARRAY,
       items: {
@@ -103,7 +104,7 @@ const schema = {
           duration: { type: Type.STRING, description: "e.g., 'Jan 2020 - Present' or '3 years'" },
           details: {
             type: Type.ARRAY,
-            description: "Bulleted list of responsibilities and achievements",
+            description: "Bulleted list of responsibilities and achievements, focused on relevance to the JD requirements",
             items: { type: Type.STRING }
           }
         },
@@ -136,33 +137,49 @@ const schema = {
 };
 
 
-export const extractResumeData = async (file: File): Promise<ExtractedData> => {
+export const extractResumeData = async (resumeFile: File, jdFile: File | null): Promise<ExtractedData> => {
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
     throw new Error("API_KEY environment variable not set");
   }
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  const filePart = await fileToGenerativePart(file);
+  const resumePart = await fileToGenerativePart(resumeFile);
+  const parts: any[] = [{ inlineData: resumePart.inlineData }];
   
-  const prompt = `You are an expert HR assistant specializing in parsing resumes. Analyze the provided resume document and extract the information precisely according to the JSON schema I've provided.
+  let jdPromptAddition = "";
+  if (jdFile) {
+      const jdPart = await fileToGenerativePart(jdFile);
+      parts.push({ inlineData: jdPart.inlineData });
+      jdPromptAddition = `A Job Description (JD) has been provided as the second document. When extracting details and answering questions, please align the candidate's experience with the requirements and skills mentioned in the JD. Specifically, highlight relevant achievements in the professional experience section and summary that demonstrate suitability for the specific role described in the JD.`;
+  }
+  
+  const prompt = `You are an expert Executive Search consultant at Alcott Global. 
+  
+  TASK:
+  Analyze the provided Candidate Resume and ${jdFile ? 'align it with the provided Job Description' : 'extract key professional details'}.
+  
+  INSTRUCTIONS:
+  1. Extract information precisely according to the JSON schema provided.
+  2. ${jdPromptAddition}
+  3. Answer the following "Functional Evaluation" questions based on the resume content. Group the answers by the specified categories. Match the category and question text exactly from this list:
+  ${categorizedQuestionList}
+  4. In the 'Summary' section, write a high-level 3-4 sentence professional pitch of the candidate ${jdFile ? 'explaining why they are a strong fit for the specific JD provided' : 'summarizing their career'}.
+  5. For the 'Professional Experience' section, list key responsibilities and achievements as concise bullet points, prioritizing those most relevant to supply chain, logistics, and operations.
 
-Answer the following questions based on the resume content. Place the answers in the 'functionalEvaluation' array in the JSON output, grouped by the specified categories. Match the category and question text exactly from this list:
-${categorizedQuestionList}
+  If any specific information is missing from the documents for a required field, use "Not specified" or an empty array. Do not hallucinate data.`;
 
-For the professional experience section, summarize the key responsibilities and achievements for each role into a list of concise bullet points.
-
-If any information is not found in the document, please use "Not specified" or an empty array where appropriate.`;
+  parts.push({ text: prompt });
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-pro-preview', // Upgraded to Pro for complex cross-document alignment
     contents: [
-        { parts: [filePart] },
-        { parts: [{ text: prompt }] },
+        { parts: parts },
     ],
     config: {
         responseMimeType: 'application/json',
         responseSchema: schema,
+        thinkingConfig: { thinkingBudget: 4000 } // Enable thinking for better reasoning between JD and CV
     },
   });
 
@@ -175,6 +192,6 @@ If any information is not found in the document, please use "Not specified" or a
     return JSON.parse(jsonText) as ExtractedData;
   } catch (e) {
     console.error("Failed to parse JSON response:", jsonText);
-    throw new Error("The API returned an invalid data format.");
+    throw new Error("The AI returned an invalid data format. Please try again.");
   }
 };

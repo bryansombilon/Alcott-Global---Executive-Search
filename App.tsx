@@ -8,20 +8,15 @@ import type { ExtractedData } from './types';
 import { extractResumeData } from './services/geminiService';
 
 const App: React.FC = () => {
-  const [file, setFile] = useState<File | null>(null);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [jdFile, setJdFile] = useState<File | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFileChange = (selectedFile: File | null) => {
-    setFile(selectedFile);
-    setExtractedData(null);
-    setError(null);
-  };
-
   const handleAnalysis = useCallback(async () => {
-    if (!file) {
-      setError('Please select a file first.');
+    if (!resumeFile) {
+      setError('Please upload a candidate resume first.');
       return;
     }
 
@@ -30,23 +25,23 @@ const App: React.FC = () => {
     setExtractedData(null);
 
     try {
-      const data = await extractResumeData(file);
+      const data = await extractResumeData(resumeFile, jdFile);
       setExtractedData(data);
     } catch (err: any) {
       console.error('Extraction failed:', err);
-      setError('Failed to analyze the document. The content may be invalid or the format is not supported. Please try again.');
+      setError('Failed to analyze the documents. Please ensure they are valid PDF or Word files and try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [file]);
+  }, [resumeFile, jdFile]);
   
   const handleReset = () => {
-    setFile(null);
+    setResumeFile(null);
+    setJdFile(null);
     setExtractedData(null);
     setError(null);
     setIsLoading(false);
   };
-
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 antialiased">
@@ -60,36 +55,72 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {extractedData ? (
              <ResultsDisplay data={extractedData} onReset={handleReset} />
           ) : (
-            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 text-center">
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Upload Your Document</h2>
-              <p className="text-gray-500 mb-6">Upload a resume (PDF or Word) to automatically extract key information.</p>
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-semibold text-gray-800 mb-2">Analyze Candidate Suitability</h2>
+                <p className="text-gray-500">Upload both the candidate's resume and the job description for a tailored analysis.</p>
+              </div>
               
-              <FileUpload onFileChange={handleFileChange} disabled={isLoading} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide">1. Candidate Resume (Required)</label>
+                  <FileUpload 
+                    onFileChange={setResumeFile} 
+                    disabled={isLoading} 
+                    placeholder="Drop CV here"
+                  />
+                  {resumeFile && (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded border border-green-100">
+                      <DocumentIcon className="w-4 h-4" />
+                      <span className="font-medium truncate">{resumeFile.name}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide">2. Job Description (Optional)</label>
+                  <FileUpload 
+                    onFileChange={setJdFile} 
+                    disabled={isLoading} 
+                    placeholder="Drop JD here"
+                  />
+                  {jdFile && (
+                    <div className="flex items-center gap-2 text-sm text-primary-600 bg-primary-50 p-2 rounded border border-primary-100">
+                      <DocumentIcon className="w-4 h-4" />
+                      <span className="font-medium truncate">{jdFile.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
               
-              {file && !isLoading && (
-                <div className="mt-6 text-center">
-                    <p className="text-sm text-gray-600 mb-4">Ready to analyze: <span className="font-medium text-gray-800">{file.name}</span></p>
-                    <button
-                        onClick={handleAnalysis}
-                        className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-                    >
-                        Analyze Resume
-                    </button>
-                </div>
-              )}
+              <div className="flex flex-col items-center">
+                {!isLoading && (
+                  <button
+                      onClick={handleAnalysis}
+                      disabled={!resumeFile}
+                      className={`w-full sm:w-auto inline-flex items-center justify-center px-10 py-4 border border-transparent text-lg font-bold rounded-xl shadow-md text-white transition-all ${
+                        !resumeFile 
+                          ? 'bg-gray-300 cursor-not-allowed' 
+                          : 'bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300'
+                      }`}
+                  >
+                      {jdFile ? 'Analyze Against JD' : 'Analyze Resume Only'}
+                  </button>
+                )}
 
-              {isLoading && <Loader />}
+                {isLoading && <Loader />}
 
-              {error && (
-                <div className="mt-6 text-red-600 bg-red-50 p-4 rounded-md">
-                  <p className="font-semibold">Error</p>
-                  <p>{error}</p>
-                </div>
-              )}
+                {error && (
+                  <div className="mt-6 w-full text-red-600 bg-red-50 p-4 rounded-lg border border-red-100 text-center">
+                    <p className="font-bold mb-1">Analysis Error</p>
+                    <p className="text-sm">{error}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

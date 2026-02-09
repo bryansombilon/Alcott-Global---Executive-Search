@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -5,6 +6,7 @@ import type { ExtractedData, ProfessionalExperience, Education, Certification } 
 import { EditableField } from './EditableField';
 import { AddIcon } from './icons/AddIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
+import { WordIcon } from './icons/WordIcon';
 
 interface ResultsDisplayProps {
     data: ExtractedData;
@@ -66,11 +68,17 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
         const headerEl = document.getElementById('report-header');
         const contentEl = document.getElementById('report-body');
         const footerEl = document.getElementById('report-footer');
+        const reportContainer = document.getElementById('report-container');
     
         if (!headerEl || !contentEl || !footerEl) {
             console.error("Report elements not found for printing.");
             setIsPrinting(false);
             return;
+        }
+
+        const originalFont = reportContainer ? reportContainer.style.fontFamily : '';
+        if (reportContainer) {
+            reportContainer.style.fontFamily = "'Century Gothic', sans-serif";
         }
 
         const noPrintElements = Array.from(contentEl.querySelectorAll('.no-print')) as HTMLElement[];
@@ -165,6 +173,9 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
             alert("Sorry, there was an error creating the print version of the report.");
         } finally {
             // Cleanup
+            if (reportContainer) {
+                reportContainer.style.fontFamily = originalFont;
+            }
             spacers.forEach(el => el.remove());
             noPrintElements.forEach(el => el.style.display = '');
             setIsPrinting(false);
@@ -176,11 +187,17 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
         const headerEl = document.getElementById('report-header');
         const contentEl = document.getElementById('report-body');
         const footerEl = document.getElementById('report-footer');
+        const reportContainer = document.getElementById('report-container');
 
         if (!headerEl || !contentEl || !footerEl) {
             console.error("Report elements not found for downloading.");
             setIsGeneratingPdf(false);
             return;
+        }
+
+        const originalFont = reportContainer ? reportContainer.style.fontFamily : '';
+        if (reportContainer) {
+            reportContainer.style.fontFamily = "'Century Gothic', sans-serif";
         }
 
         const noPrintElements = Array.from(contentEl.querySelectorAll('.no-print')) as HTMLElement[];
@@ -260,12 +277,153 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
             console.error("Error generating PDF for download:", error);
             alert("Sorry, there was an error creating the PDF report.");
         } finally {
+            if (reportContainer) {
+                reportContainer.style.fontFamily = originalFont;
+            }
             spacers.forEach(el => el.remove());
             noPrintElements.forEach(el => el.style.display = '');
             setIsGeneratingPdf(false);
         }
     };
 
+    const handleDownloadDoc = () => {
+        const content = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset="utf-8">
+                <title>${editableData.candidateName} - Resume</title>
+                <style>
+                    body { font-family: 'Century Gothic', sans-serif; font-size: 11pt; line-height: 1.5; color: #333; }
+                    .header { background-color: #000; color: #fff; padding: 20px; text-align: center; }
+                    .logo-text { font-size: 18pt; font-weight: bold; letter-spacing: 3px; line-height: 1.2; }
+                    .section-header { background-color: #000; color: #fff; padding: 5px 10px; font-weight: bold; text-transform: uppercase; font-size: 12pt; margin-top: 20px; margin-bottom: 10px; }
+                    .candidate-name { font-size: 24pt; font-weight: bold; color: #000; margin-bottom: 5px; }
+                    .designation { font-size: 14pt; color: #2563eb; font-weight: bold; margin-bottom: 20px; }
+                    .grid-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    .grid-td { width: 33%; vertical-align: top; padding-bottom: 10px; }
+                    .label { font-size: 8pt; color: #666; font-weight: bold; text-transform: uppercase; }
+                    .value { font-size: 10pt; color: #000; }
+                    .exp-item { margin-bottom: 15px; }
+                    .exp-pos { font-size: 12pt; font-weight: bold; }
+                    .exp-comp { font-size: 11pt; font-style: italic; }
+                    .exp-dur { font-size: 10pt; color: #666; }
+                    .footer { background-color: #000; color: #fff; padding: 15px; font-size: 8pt; margin-top: 30px; }
+                    ul { margin-top: 5px; margin-bottom: 5px; padding-left: 20px; }
+                    li { margin-bottom: 2px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo-text">ALCOTT<br/>GLOBAL</div>
+                </div>
+                
+                <br/>
+
+                <div class="candidate-name">${editableData.candidateName || ''}</div>
+                <div class="designation">${editableData.designation || ''}</div>
+
+                <table class="grid-table">
+                    <tr>
+                        <td class="grid-td">
+                            <div class="label">Current Employer</div>
+                            <div class="value">${editableData.employer || ''}</div>
+                        </td>
+                        <td class="grid-td">
+                            <div class="label">Location</div>
+                            <div class="value">${editableData.location || ''}</div>
+                        </td>
+                        <td class="grid-td">
+                            <div class="label">Industry</div>
+                            <div class="value">${editableData.industry || ''}</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="grid-td">
+                            <div class="label">Function</div>
+                            <div class="value">${editableData.function || ''}</div>
+                        </td>
+                        <td class="grid-td">
+                            <div class="label">Languages</div>
+                            <div class="value">${editableData.language || ''}</div>
+                        </td>
+                        <td class="grid-td"></td>
+                    </tr>
+                </table>
+
+                ${editableData.summary ? `
+                <div class="section-header">Summary</div>
+                <p>${editableData.summary.replace(/\n/g, '<br/>')}</p>
+                ` : ''}
+
+                <div class="section-header">Education, Professional Trainings & Certification</div>
+                
+                <table style="width: 100%; margin-bottom: 20px;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                            <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px;">Education</h3>
+                            ${(editableData.education || []).map(edu => `
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-weight: bold;">${edu.institution}</div>
+                                    <div>${edu.degree}</div>
+                                    <div style="font-size: 9pt; color: #666;">${edu.year}</div>
+                                </div>
+                            `).join('')}
+                        </td>
+                        <td style="width: 50%; vertical-align: top; padding-left: 10px;">
+                            <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px;">Certifications</h3>
+                            ${(editableData.certifications || []).map(cert => `
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-weight: bold;">${cert.name}</div>
+                                    <div style="font-size: 9pt; color: #666;">${cert.year}</div>
+                                </div>
+                            `).join('')}
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="section-header">Functional Evaluation Form</div>
+                ${(editableData.functionalEvaluation || []).map(cat => `
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-weight: bold; background-color: #eee; padding: 5px;">${cat.category}</div>
+                        ${(cat.questions || []).map(q => `
+                            <div style="margin-top: 10px; padding-left: 10px;">
+                                <div style="font-weight: bold; font-size: 10pt;">${q.question}</div>
+                                <div style="margin-top: 2px;">${(q.answer || '').replace(/\n/g, '<br/>')}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `).join('')}
+
+                <div class="section-header">Professional Experience</div>
+                ${(editableData.professionalExperience || []).map(exp => `
+                    <div class="exp-item">
+                        <div class="exp-pos">${exp.position}</div>
+                        <div class="exp-comp">${exp.company} <span class="exp-dur">| ${exp.duration}</span></div>
+                        <ul>
+                            ${(exp.details || []).map(d => `<li>${d}</li>`).join('')}
+                        </ul>
+                    </div>
+                `).join('')}
+
+                <div class="footer">
+                    <p>Alcott Global – Upgrading Value Chains, One Connection at a Time</p>
+                    <p>contact@alcottglobal.com | www.alcottglobal.com</p>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', content], {
+            type: 'application/msword'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Resume - ${editableData.candidateName || 'Candidate'}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     const handleFieldUpdate = (field: keyof Omit<ExtractedData, 'professionalExperience' | 'education' | 'certifications' | 'functionalEvaluation'>, value: string) => {
         const newData = { ...editableData, [field]: value };
@@ -349,7 +507,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
 
     return (
         <div className="space-y-8 animate-fade-in">
-            <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex justify-center items-center gap-4 no-print">
+            <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex justify-center items-center gap-4 no-print flex-wrap">
                 <button
                     onClick={handlePrint}
                     disabled={isPrinting}
@@ -363,6 +521,13 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, onReset })
                     className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-gray-400"
                 >
                     {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
+                </button>
+                <button
+                    onClick={handleDownloadDoc}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center gap-2"
+                >
+                    <WordIcon className="w-5 h-5" />
+                    Export DOC
                 </button>
                 <button
                     onClick={handleResetClick}
