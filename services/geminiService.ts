@@ -68,7 +68,7 @@ const schema = {
     industry: { type: Type.STRING },
     function: { type: Type.STRING, description: "Job function, e.g., Supply Chain, Logistics" },
     language: { type: Type.STRING, description: "Languages spoken by the candidate" },
-    summary: { type: Type.STRING, description: "A tailored professional summary highlighting fit for the JD" },
+    summary: { type: Type.STRING, description: "A highly tailored professional summary. If a JD is provided, focus on the candidate's 'Right Fit' for that role." },
     education: {
       type: Type.ARRAY,
       items: {
@@ -104,7 +104,7 @@ const schema = {
           duration: { type: Type.STRING, description: "e.g., 'Jan 2020 - Present' or '3 years'" },
           details: {
             type: Type.ARRAY,
-            description: "Bulleted list of responsibilities and achievements, focused on relevance to the JD requirements",
+            description: "Bulleted list of responsibilities. If JD is provided, emphasize experience that maps directly to JD requirements.",
             items: { type: Type.STRING }
           }
         },
@@ -151,35 +151,41 @@ export const extractResumeData = async (resumeFile: File, jdFile: File | null): 
   if (jdFile) {
       const jdPart = await fileToGenerativePart(jdFile);
       parts.push({ inlineData: jdPart.inlineData });
-      jdPromptAddition = `A Job Description (JD) has been provided as the second document. When extracting details and answering questions, please align the candidate's experience with the requirements and skills mentioned in the JD. Specifically, highlight relevant achievements in the professional experience section and summary that demonstrate suitability for the specific role described in the JD.`;
+      jdPromptAddition = `
+      CRITICAL REQUIREMENT: A Job Description (JD) is provided as the second document. 
+      You MUST evaluate the Candidate Resume specifically for its alignment with this JD.
+      - SUMMARY: Write a "Pitch for the Role" summarizing why this specific candidate matches the JD's requirements (years of experience, specific skills, regional exposure).
+      - EXPERIENCE: Filter and prioritize professional experience details that prove the candidate can perform the duties listed in the JD.
+      - EVALUATION: When answering the functional questions, draw connections between the candidate's past work and the JD requirements where appropriate.`;
   }
   
-  const prompt = `You are an expert Executive Search consultant at Alcott Global. 
+  const prompt = `You are a world-class Executive Search Consultant specializing in Supply Chain and Logistics. 
   
   TASK:
-  Analyze the provided Candidate Resume and ${jdFile ? 'align it with the provided Job Description' : 'extract key professional details'}.
+  1. Carefully read the Candidate Resume (Document 1).
+  2. ${jdFile ? 'Carefully read the Job Description (Document 2).' : 'Analyze the resume profile.'}
+  3. Extract details and perform a candidate assessment.
   
   INSTRUCTIONS:
-  1. Extract information precisely according to the JSON schema provided.
-  2. ${jdPromptAddition}
-  3. Answer the following "Functional Evaluation" questions based on the resume content. Group the answers by the specified categories. Match the category and question text exactly from this list:
+  - Extract information according to the JSON schema.
+  - ${jdPromptAddition}
+  - Answer the "Functional Evaluation" questions below using only the candidate's actual data. If the data is not in the resume, state "Information not available in resume".
+  - Match these categories and questions exactly:
   ${categorizedQuestionList}
-  4. In the 'Summary' section, write a high-level 3-4 sentence professional pitch of the candidate ${jdFile ? 'explaining why they are a strong fit for the specific JD provided' : 'summarizing their career'}.
-  5. For the 'Professional Experience' section, list key responsibilities and achievements as concise bullet points, prioritizing those most relevant to supply chain, logistics, and operations.
-
-  If any specific information is missing from the documents for a required field, use "Not specified" or an empty array. Do not hallucinate data.`;
+  
+  Tone: Professional, objective, and analytical. Focus on hard data and specific achievements.`;
 
   parts.push({ text: prompt });
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview', // Upgraded to Pro for complex cross-document alignment
+    model: 'gemini-3-pro-preview',
     contents: [
         { parts: parts },
     ],
     config: {
         responseMimeType: 'application/json',
         responseSchema: schema,
-        thinkingConfig: { thinkingBudget: 4000 } // Enable thinking for better reasoning between JD and CV
+        thinkingConfig: { thinkingBudget: 8000 } // Higher budget for deeper JD/CV cross-analysis
     },
   });
 
