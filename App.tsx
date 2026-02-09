@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ResultsDisplay } from './components/ResultsDisplay';
@@ -29,7 +28,8 @@ const App: React.FC = () => {
       setExtractedData(data);
     } catch (err: any) {
       console.error('Extraction failed:', err);
-      setError('An error occurred during analysis. Please ensure the files are readable and try again.');
+      // Display the specific error message if it exists, otherwise a friendly default
+      setError(err.message || 'An error occurred during analysis. Please ensure the files are readable and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +150,7 @@ const App: React.FC = () => {
                   )}
 
                   {error && (
-                    <div className="mt-8 max-w-md w-full animate-bounce-short">
+                    <div className="mt-8 max-w-lg w-full">
                       <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
                         <div className="flex">
                           <div className="flex-shrink-0">
@@ -159,8 +159,8 @@ const App: React.FC = () => {
                             </svg>
                           </div>
                           <div className="ml-3">
-                            <p className="text-sm font-bold text-red-800">Analysis Error</p>
-                            <p className="text-xs text-red-700 mt-1">{error}</p>
+                            <p className="text-sm font-bold text-red-800">Analysis Failed</p>
+                            <p className="text-sm text-red-700 mt-1">{error}</p>
                           </div>
                         </div>
                       </div>

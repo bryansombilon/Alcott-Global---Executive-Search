@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { ExtractedData } from "../types";
 
@@ -10,10 +9,20 @@ const fileToGenerativePart = async (file: File) => {
     reader.readAsDataURL(file);
   });
 
+  // Ensure we have a valid mimeType, falling back based on extension if necessary
+  let mimeType = file.type;
+  if (!mimeType) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.pdf')) mimeType = 'application/pdf';
+    else if (name.endsWith('.docx')) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    else if (name.endsWith('.doc')) mimeType = 'application/msword';
+    else mimeType = 'application/octet-stream';
+  }
+
   return {
     inlineData: {
       data: base64EncodedData,
-      mimeType: file.type,
+      mimeType: mimeType,
     },
   };
 };
@@ -140,64 +149,74 @@ const schema = {
 export const extractResumeData = async (resumeFile: File, jdFile: File | null): Promise<ExtractedData> => {
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
-    throw new Error("API_KEY environment variable not set");
+    throw new Error("API Key is missing. Please contact support.");
   }
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  const resumePart = await fileToGenerativePart(resumeFile);
-  const parts: any[] = [{ inlineData: resumePart.inlineData }];
-  
-  let jdPromptAddition = "";
-  if (jdFile) {
-      const jdPart = await fileToGenerativePart(jdFile);
-      parts.push({ inlineData: jdPart.inlineData });
-      jdPromptAddition = `
-      CRITICAL REQUIREMENT: A Job Description (JD) is provided as the second document. 
-      You MUST evaluate the Candidate Resume specifically for its alignment with this JD.
-      - SUMMARY: Write a "Pitch for the Role" summarizing why this specific candidate matches the JD's requirements (years of experience, specific skills, regional exposure).
-      - EXPERIENCE: Filter and prioritize professional experience details that prove the candidate can perform the duties listed in the JD.
-      - EVALUATION: When answering the functional questions, draw connections between the candidate's past work and the JD requirements where appropriate.`;
-  }
-  
-  const prompt = `You are a world-class Executive Search Consultant specializing in Supply Chain and Logistics. 
-  
-  TASK:
-  1. Carefully read the Candidate Resume (Document 1).
-  2. ${jdFile ? 'Carefully read the Job Description (Document 2).' : 'Analyze the resume profile.'}
-  3. Extract details and perform a candidate assessment.
-  
-  INSTRUCTIONS:
-  - Extract information according to the JSON schema.
-  - ${jdPromptAddition}
-  - Answer the "Functional Evaluation" questions below using only the candidate's actual data. If the data is not in the resume, state "Information not available in resume".
-  - Match these categories and questions exactly:
-  ${categorizedQuestionList}
-  
-  Tone: Professional, objective, and analytical. Focus on hard data and specific achievements.`;
-
-  parts.push({ text: prompt });
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: [
-        { parts: parts },
-    ],
-    config: {
-        responseMimeType: 'application/json',
-        responseSchema: schema,
-        thinkingConfig: { thinkingBudget: 8000 } // Higher budget for deeper JD/CV cross-analysis
-    },
-  });
-
-  const jsonText = response.text;
-  if (!jsonText) {
-      throw new Error("Received an empty response from the API.");
-  }
-  
   try {
-    return JSON.parse(jsonText) as ExtractedData;
-  } catch (e) {
-    console.error("Failed to parse JSON response:", jsonText);
-    throw new Error("The AI returned an invalid data format. Please try again.");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+    const resumePart = await fileToGenerativePart(resumeFile);
+    const parts: any[] = [resumePart];
+    
+    let jdPromptAddition = "";
+    if (jdFile) {
+        const jdPart = await fileToGenerativePart(jdFile);
+        parts.push(jdPart);
+        jdPromptAddition = `
+        CRITICAL REQUIREMENT: A Job Description (JD) is provided as the second document. 
+        You MUST evaluate the Candidate Resume specifically for its alignment with this JD.
+        - SUMMARY: Write a "Pitch for the Role" summarizing why this specific candidate matches the JD's requirements (years of experience, specific skills, regional exposure).
+        - EXPERIENCE: Filter and prioritize professional experience details that prove the candidate can perform the duties listed in the JD.
+        - EVALUATION: When answering the functional questions, draw connections between the candidate's past work and the JD requirements where appropriate.`;
+    }
+    
+    const prompt = `You are a world-class Executive Search Consultant specializing in Supply Chain and Logistics. 
+    
+    TASK:
+    1. Carefully read the Candidate Resume (Document 1).
+    2. ${jdFile ? 'Carefully read the Job Description (Document 2).' : 'Analyze the resume profile.'}
+    3. Extract details and perform a candidate assessment.
+    
+    INSTRUCTIONS:
+    - Extract information according to the JSON schema.
+    - ${jdPromptAddition}
+    - Answer the "Functional Evaluation" questions below using only the candidate's actual data. If the data is not in the resume, state "Information not available in resume".
+    - Match these categories and questions exactly:
+    ${categorizedQuestionList}
+    
+    Tone: Professional, objective, and analytical. Focus on hard data and specific achievements.`;
+
+    parts.push({ text: prompt });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: { parts },
+      config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          // Removed explicit thinking budget to improve stability with standard token limits
+      },
+    });
+
+    const jsonText = response.text;
+    if (!jsonText) {
+        throw new Error("The AI returned an empty response. This might be due to safety filters or a transient error.");
+    }
+    
+    try {
+      return JSON.parse(jsonText) as ExtractedData;
+    } catch (e) {
+      console.error("Failed to parse JSON response:", jsonText);
+      throw new Error("The AI failed to format the data correctly. Please try again.");
+    }
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
+    if (error.message?.includes("429") || error.message?.includes("quota")) {
+      throw new Error("Rate limit exceeded. Please wait a moment before trying again.");
+    }
+    if (error.message?.includes("400")) {
+      throw new Error("The files provided might be too large or incompatible with the analysis model.");
+    }
+    throw new Error(error.message || "An unexpected error occurred during analysis.");
   }
 };
